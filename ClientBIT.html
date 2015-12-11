@@ -1,10 +1,31 @@
+<!---HTML that displays real-time data from a connected bitalino device
+uses the ServerBIT code by Hugo Silva (https://github.com/BITalinoWorld/python-serverbit)
+but uses smoothie.js to plot the data from the Python server instead of flot-->
+
+
+
 <html>
     <script language="javascript" type="text/javascript" src="jquery.js"></script> 
-    <script language="javascript" type="text/javascript" src="jquery.flot.js"></script> 
+	<script language="javascript" type="text/javascript" src="smoothie.js"></script> 
+	
+	
+	 <body>
+        <div><h1>Your heart, in action.</h1>
+		Please hook up the bitalino now.</div>
+	<!--<div id="placeholder" style="width:600px;height:300px;"></div> -->
+	<canvas id="mycanvas" width="800" height="200"></canvas>
+	<br>
+	Server Messages:
+	<div class="output"></div>
+	
+    </body>
+	
     <script type="text/javascript">
         // Establish a connection to the ServerBIT
-        var ws = new WebSocket("ws://localhost:9001 ");
-
+        var ws = new WebSocket("ws://localhost:9002 ");
+		var series = new TimeSeries();
+		var chart = new SmoothieChart({grid:{fillStyle:'transparent'},millisPerPixel:5,maxValue:0.75,minValue:-0.75,labels:{fillStyle:'#000000'}});
+		chart.addTimeSeries(series, {lineWidth:2,strokeStyle:'#8049b6'});
         // Define the boolean data type as used in Python
         var True = true
         var False = false
@@ -18,7 +39,7 @@
 
             // Log the response onto the HTML body
             if (msg.indexOf("read")<0) {
-                $("body").html($("body").html()+msg+"<br/>")
+                $("div.output").html($("div.output").html()+msg+"<br/>")
             }
 
             // Evaluate the respose
@@ -41,12 +62,12 @@
         server=new function() {
             this.connected=function(msg) {
                 // When a connection to ServerBIT is established, open the connection to the device
-                ws.send("server.BITalino('/dev/tty.bitalino-DevB')")
+                ws.send("server.BITalino('98:D3:31:B2:BB:7F')")
             }
             this.BITalino=function(msg) {
                 if (msg) {
                      // When a connection to the device is established start the acquisition
-                     ws.send("device.start(1000, [3])")
+                     ws.send("device.start(1000, [2])")
                 }
             }
         }
@@ -55,18 +76,28 @@
         device=new function() {
             this.start=function(msg) {
                 // When the device starts the acquisition read samples
-                ws.send("device.read(250)[:,-1]")
+                ws.send("device.read(100)[:,-1]")
             }
             this.read=function(msg) {
                 // When a set of samples is read request more samples
-                ws.send("device.read(250)[:,-1]")
+                ws.send("device.read(100)[:,-1]")
                 
                 var d1 = [];
+				setInterval(function() {
+					for (var i = 0; i < msg.length; i += 1) 
+						series.append(new Date().getTime(), ((msg[i]*3.3/Math.pow(2,10) - 3.3/2))*1000/1100);					
+						//series.append(new Date().getTime(), msg[i]);					
+				
+				}, 1000);
+				
+				chart.streamTo(document.getElementById("mycanvas"));
+				
+				/*console.log(msg.length);
                 for (var i = 0; i < msg.length; i += 1)
-                    d1.push([i, msg[i]]);
+                    d1.push([i, ((msg[i]*3.3/Math.pow(2,10) - 3.3/2))*1000/1100]);
                 
                 $.plot($("#placeholder"), [ d1 ], {yaxis: {
-              min:0, max: 1024}});
+              min:-1.5, max: 1.5}});*/
             }
             this.version=function(msg) {}
             this.stop=function(msg) {}
@@ -82,8 +113,4 @@
         
         
     </script>
-    <body>
-        <div><h1>BITalinoWS</h1></div>
-	<div id="placeholder" style="width:600px;height:300px;"></div> 
-    </body>
 </html>
